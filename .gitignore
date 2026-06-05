@@ -1,0 +1,5 @@
+/weft-ha-forgejo
+/dist/
+/coverage.out
+.DS_Store
+*.swp
