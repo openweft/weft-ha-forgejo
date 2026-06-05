@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -114,13 +115,10 @@ func runAgent(ctx context.Context, cfg config.Config, period time.Duration) erro
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	store := dcs.NewMemStore()
+	store := pickStore(cfg, log)
 	defer func() { _ = store.Close() }()
 
-	// FakeController : the production controller (next milestone)
-	// hits /api/healthz on 127.0.0.1:3000 and `forgejo` CLI for
-	// admin-user create + schema migration.
-	server := &forgejo.FakeController{NextStatus: forgejo.Status{Up: true, Version: "scaffold"}}
+	server := pickController(log)
 
 	apiSrv := api.New(cfg.APIAddr, cfg.InstallName, cfg.NodeName, cfg.DC)
 	if err := apiSrv.Start(); err != nil {
@@ -148,4 +146,67 @@ func shutdown(s shutdowner) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = s.Shutdown(ctx)
+}
+
+// pickStore selects the DCS backend at runtime.
+//
+//   - WEFT_HA_FORGEJO_ETCD=host:2379[,host:2379...] → EtcdStore (HA).
+//   - unset → MemStore (dev / smoke tests ; NOT cross-replica).
+//
+// The split here lets the same binary smoke-boot in a single-host dev
+// VM (no etcd dep) and also run in production behind a 3-DC etcd
+// quorum, without a build-time toggle.
+func pickStore(cfg config.Config, log *slog.Logger) dcs.Store {
+	endpoints := envEndpoints("WEFT_HA_FORGEJO_ETCD")
+	if len(endpoints) == 0 && len(cfg.EtcdEndpoints) > 0 {
+		// Validate() requires at least one --etcd ; honour it as the
+		// fallback so a smoke install can stay flag-driven without
+		// touching the environment.
+		endpoints = cfg.EtcdEndpoints
+	}
+	if len(endpoints) == 0 {
+		log.Warn("DCS = MemStore (no etcd configured) ; NOT cross-replica")
+		return dcs.NewMemStore()
+	}
+	log.Info("DCS = etcd", "endpoints", endpoints, "install", cfg.InstallName)
+	return dcs.NewEtcdStore(endpoints, cfg.InstallName, 15)
+}
+
+// pickController selects the Forgejo Controller at runtime.
+//
+//   - WEFT_HA_FORGEJO_USE_REAL_CONTROLLER=1 → HTTPController against
+//     the loopback Forgejo on 127.0.0.1:3000.
+//   - unset → FakeController returning Up=true (smoke / unit tests).
+//
+// WEFT_HA_FORGEJO_FORGEJO_URL overrides the base URL when set ; this
+// is the seam the CI integration harness uses to point at an httptest
+// server.
+func pickController(log *slog.Logger) forgejo.Controller {
+	if os.Getenv("WEFT_HA_FORGEJO_USE_REAL_CONTROLLER") != "1" {
+		log.Warn("Controller = FakeController(Up=true) ; set WEFT_HA_FORGEJO_USE_REAL_CONTROLLER=1 to probe a real Forgejo")
+		return &forgejo.FakeController{NextStatus: forgejo.Status{Up: true, Version: "scaffold"}}
+	}
+	baseURL := os.Getenv("WEFT_HA_FORGEJO_FORGEJO_URL")
+	if baseURL == "" {
+		baseURL = forgejo.DefaultBaseURL
+	}
+	log.Info("Controller = HTTPController", "base_url", baseURL)
+	return forgejo.NewHTTPController(baseURL)
+}
+
+// envEndpoints parses a comma-separated env var into a clean slice
+// (empty entries dropped).
+func envEndpoints(name string) []string {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
