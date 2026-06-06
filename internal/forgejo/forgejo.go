@@ -136,7 +136,16 @@ func (h *HTTPController) checkHealthz(ctx context.Context) (Status, error) {
 		// Forgejo returned 200 but a body we can't parse ; treat as up.
 		return Status{Up: true}, nil
 	}
-	if parsed.Status != "ok" {
+	// Forgejo v10 follows the IETF Health Check RFC draft : "pass" / "warn"
+	// / "fail" rather than the legacy "ok" / "unhealthy" pair. Accept both
+	// so the controller stays usable against older Gitea-era binaries and
+	// the current Forgejo line. "warn" surfaces as Up=true because the
+	// health endpoint is composite (cache + database pings) and a stale
+	// cache shouldn't drain the L7 pool — only "fail" does.
+	switch parsed.Status {
+	case "ok", "pass", "warn":
+		// healthy
+	default:
 		return Status{
 			Up:     false,
 			Reason: fmt.Sprintf("healthz status=%q", parsed.Status),

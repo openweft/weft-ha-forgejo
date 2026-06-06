@@ -76,6 +76,42 @@ func TestHTTPController_HealthzStatusFieldUnhealthy(t *testing.T) {
 	}
 }
 
+// TestHTTPController_HealthzRFCStatusValues pins the IETF Health Check RFC
+// vocabulary Forgejo v10 actually returns ("pass" / "warn" / "fail").
+// Caught live against a real Forgejo 10.0.3 on 2026-06-06 : the controller
+// previously only accepted the legacy "ok" string and flipped every healthy
+// Forgejo v10 to Up=false. Regression guard.
+func TestHTTPController_HealthzRFCStatusValues(t *testing.T) {
+	cases := []struct {
+		name   string
+		status string
+		wantUp bool
+	}{
+		{"rfc-pass", "pass", true},
+		{"rfc-warn-cache-stale", "warn", true},
+		{"rfc-fail", "fail", false},
+		{"legacy-ok", "ok", true},
+		{"legacy-unhealthy", "unhealthy", false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"status":"` + tc.status + `"}`))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+			c := NewHTTPController(srv.URL)
+			st, _ := c.CheckStatus(context.Background())
+			if st.Up != tc.wantUp {
+				t.Errorf("status=%q : Up = %v, want %v (reason=%q)", tc.status, st.Up, tc.wantUp, st.Reason)
+			}
+		})
+	}
+}
+
 func TestHTTPController_NetworkDown(t *testing.T) {
 	// Point at a port that isn't listening. The dial fails ; the agent
 	// should report Up=false with a Reason, NOT bubble the error up.
