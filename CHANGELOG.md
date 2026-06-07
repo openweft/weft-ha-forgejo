@@ -7,6 +7,16 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- `internal/api.ready` (serving both `/ready` and `/health`) now emits a
+  JSON body in the IETF Health Check Response Format
+  (draft-inadarei-api-health-check) : `{"status":"pass"}` on healthy,
+  `{"status":"fail","reason":...}` on drain. Previously the endpoint
+  returned a plain-text `ok` / `forgejo not up` body, which forced the
+  webui dashboard to special-case forgejo-ha against the postgres-ha
+  sibling. Same vocab as the upstream Forgejo `/api/healthz` we probe.
+
 ## [v0.2.0-rc1] — 2026-06-05
 
 This release candidate turns the v0.1 scaffold into an operational

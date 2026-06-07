@@ -79,14 +79,25 @@ func (s *Server) snapshot() State {
 	return *p
 }
 
+// ready answers the L7 Caddy active health check + the conventional /health
+// path. The body follows the IETF Health Check Response Format
+// (draft-inadarei-api-health-check) so the same probe code that runs against
+// weft-ha-postgresql can read this : `status: pass | fail`. The HTTP code
+// stays the load-bearing signal (200 vs 503) — the JSON body is for the
+// dashboards and any future composite probe.
 func (s *Server) ready(w http.ResponseWriter, _ *http.Request) {
 	st := s.snapshot()
+	w.Header().Set("Content-Type", "application/json")
 	if !st.Up {
-		http.Error(w, "forgejo not up", http.StatusServiceUnavailable)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "fail",
+			"reason": "forgejo not up",
+		})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "pass"})
 }
 
 func (s *Server) info(w http.ResponseWriter, _ *http.Request) {
