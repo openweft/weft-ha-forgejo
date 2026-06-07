@@ -16,6 +16,13 @@ func TestReady_503WhenDown(t *testing.T) {
 	if w.Result().StatusCode != http.StatusServiceUnavailable {
 		t.Errorf("got %d, want 503", w.Result().StatusCode)
 	}
+	var body map[string]any
+	if err := json.NewDecoder(w.Result().Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["status"] != "fail" {
+		t.Errorf("status = %q, want %q (IETF vocab)", body["status"], "fail")
+	}
 }
 
 func TestReady_200WhenUp(t *testing.T) {
@@ -26,6 +33,13 @@ func TestReady_200WhenUp(t *testing.T) {
 	s.ready(w, r)
 	if w.Result().StatusCode != http.StatusOK {
 		t.Errorf("got %d, want 200", w.Result().StatusCode)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(w.Result().Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["status"] != "pass" {
+		t.Errorf("status = %q, want %q (IETF vocab)", body["status"], "pass")
 	}
 }
 
