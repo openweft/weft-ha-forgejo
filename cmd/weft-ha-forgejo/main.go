@@ -21,6 +21,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	weftslognats "github.com/openweft/weft-slognats"
+
 	"github.com/openweft/weft-ha-forgejo/internal/api"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
 	"github.com/openweft/weft-ha-forgejo/internal/dcs"
@@ -110,7 +112,9 @@ func agentCmd() *cobra.Command {
 }
 
 func runAgent(ctx context.Context, cfg config.Config, period time.Duration) error {
-	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	log, logCloser := weftslognats.SetupFromEnv("weft.ha.forgejo." + cfg.NodeName + ".log")
+	defer logCloser.Close()
+	slog.SetDefault(log)
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
