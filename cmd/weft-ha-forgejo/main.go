@@ -115,6 +115,7 @@ func runAgent(ctx context.Context, cfg config.Config, period time.Duration) erro
 	log, logCloser := weftslognats.SetupFromEnv("weft.ha.forgejo." + cfg.NodeName + ".log")
 	defer logCloser.Close()
 	slog.SetDefault(log)
+	defer weftslognats.PanicReporter("weft-ha-forgejo")
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
