@@ -1,6 +1,6 @@
 module github.com/openweft/weft-ha-forgejo
 
-go 1.26
+go 1.27.1
 
 require (
 	github.com/openweft/weft-slognats v0.3.0
