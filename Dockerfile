@@ -24,7 +24,7 @@
 # Trigger : workflow_dispatch + on push: tags ['v*'] only (no
 #           autopublish on push:main — see openweft policy).
 
-ARG GO_VERSION=1.26
+ARG GO_VERSION=1.27.1
 ARG FORGEJO_VERSION=10
 
 ############################################################
