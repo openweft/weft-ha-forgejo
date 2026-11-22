@@ -64,6 +64,18 @@ func (m *MemStore) PutKeyIfAbsent(_ context.Context, path, value string) (bool, 
 	return true, nil
 }
 
+// ReplaceKey implements Rewriter.
+func (m *MemStore) ReplaceKey(_ context.Context, path, prev, next string) (bool, error) {
+	if cur, ok := m.keys[path]; !ok || cur != prev {
+		return false, nil
+	}
+	m.keys[path] = next
+	return true, nil
+}
+
+// Compact implements Rewriter ; a map keeps no history.
+func (m *MemStore) Compact(context.Context) error { return nil }
+
 // AcquireBootstrapLock implements Store.
 func (m *MemStore) AcquireBootstrapLock(_ context.Context, _ string) (func(), error) {
 	if m.locked {

@@ -52,6 +52,12 @@ type Config struct {
 	InternalToken string // INTERNAL_TOKEN — internal API auth
 	LFSJWTSecret  string // LFS_JWT_SECRET — LFS signing key
 
+	// SealKey is the cluster key that seals the shared secrets before they
+	// are written to etcd (obtained via --etcd-seal-key-from, never stored in
+	// etcd). SealOldKeys are previous cluster keys, kept for rotation.
+	SealKey     string
+	SealOldKeys []string
+
 	// SMTP URL for password reset. Empty disables mail.
 	SMTPURL string
 
@@ -77,6 +83,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("dc (failure domain) must not be empty")
 	case len(c.EtcdEndpoints) == 0:
 		return fmt.Errorf("at least one etcd endpoint is required")
+	case c.SealKey == "":
+		return fmt.Errorf("etcd-seal-key-from must be given: shared secrets are never stored in etcd in plaintext")
 	case c.Domain == "":
 		return fmt.Errorf("domain must not be empty")
 	case c.AdminUsername == "":

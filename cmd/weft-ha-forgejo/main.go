@@ -29,6 +29,7 @@ import (
 	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/forgejo"
 	"github.com/openweft/weft-ha-forgejo/internal/reconcile"
+	"github.com/openweft/weft-ha-forgejo/internal/sealflag"
 )
 
 // Build metadata, injected via -ldflags.
@@ -72,6 +73,8 @@ func agentCmd() *cobra.Command {
 		cfg     config.Config
 		period  time.Duration
 		secrets []*secretflag.Binding
+
+		sealBindings []*sealflag.Binding
 	)
 	cmd := &cobra.Command{
 		Use:   "agent",
@@ -79,6 +82,9 @@ func agentCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := secretflag.Resolve(cmd.Context(), secrets...); err != nil {
+				return err
+			}
+			if err := sealflag.Resolve(cmd.Context(), sealBindings...); err != nil {
 				return err
 			}
 			if err := cfg.Validate(); err != nil {
@@ -116,6 +122,12 @@ func agentCmd() *cobra.Command {
 		secretflag.Add(cmd, "internal-token", &cfg.InternalToken, "INTERNAL_TOKEN (empty = mint + seed)"),
 		secretflag.Add(cmd, "lfs-jwt-secret", &cfg.LFSJWTSecret, "LFS_JWT_SECRET (empty = mint + seed)"),
 	}
+	// The cluster key that seals the shared secrets in etcd (>= 32 bytes,
+	// identical on every replica). Rotation: new key here, old one below.
+	sealBindings = []*sealflag.Binding{
+		sealflag.AddFrom(cmd, "etcd-seal-key", &cfg.SealKey, "cluster key sealing the shared secrets in etcd"),
+		sealflag.AddFromList(cmd, "etcd-seal-old-key", &cfg.SealOldKeys, "previous cluster key (rotation)"),
+	}
 	return cmd
 }
 
@@ -128,7 +140,10 @@ func runAgent(ctx context.Context, cfg config.Config, period time.Duration) erro
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	store := pickStore(cfg, log)
+	store, err := pickStore(cfg, log)
+	if err != nil {
+		return err
+	}
 	defer func() { _ = store.Close() }()
 
 	server := pickController(log)
@@ -169,7 +184,7 @@ func shutdown(s shutdowner) {
 // The split here lets the same binary smoke-boot in a single-host dev
 // VM (no etcd dep) and also run in production behind a 3-DC etcd
 // quorum, without a build-time toggle.
-func pickStore(cfg config.Config, log *slog.Logger) dcs.Store {
+func pickStore(cfg config.Config, log *slog.Logger) (dcs.Store, error) {
 	endpoints := envEndpoints("WEFT_HA_FORGEJO_ETCD")
 	if len(endpoints) == 0 && len(cfg.EtcdEndpoints) > 0 {
 		// Validate() requires at least one --etcd ; honour it as the
@@ -179,10 +194,10 @@ func pickStore(cfg config.Config, log *slog.Logger) dcs.Store {
 	}
 	if len(endpoints) == 0 {
 		log.Warn("DCS = MemStore (no etcd configured) ; NOT cross-replica")
-		return dcs.NewMemStore()
+		return dcs.NewMemStore(), nil
 	}
-	log.Info("DCS = etcd", "endpoints", endpoints, "install", cfg.InstallName)
-	return dcs.NewEtcdStore(endpoints, cfg.InstallName, 15)
+	log.Info("DCS = etcd (shared secrets sealed)", "endpoints", endpoints, "install", cfg.InstallName)
+	return dcs.NewSealedStore(dcs.NewEtcdStore(endpoints, cfg.InstallName, 15), cfg.SealKey, cfg.SealOldKeys...)
 }
 
 // pickController selects the Forgejo Controller at runtime.
