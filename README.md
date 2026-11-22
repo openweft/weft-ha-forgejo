@@ -65,11 +65,38 @@ release, prints a deprecation warning on stderr, and is refused together
 with its twin. It will be removed in the next minor.
 
 The agent never starts Forgejo and never passes a secret to a child by
-argv or environment: it keeps them in memory and in etcd, and `weft-init`
+argv or environment: it keeps them in memory and, sealed, in etcd, and `weft-init`
 renders `app.ini`. When a renderer hands a secret to Forgejo, use
 Forgejo's file-based settings (`SECRET_KEY_URI = file:/path`,
 `INTERNAL_TOKEN_URI`, `LFS_JWT_SECRET_URI`) with the file in a private
 `0700` directory, never an `--option value` or an environment variable.
+
+### Shared secrets in etcd are sealed
+
+`SECRET_KEY`, `INTERNAL_TOKEN` and `LFS_JWT_SECRET` are shared between the
+replicas through etcd, but never stored there in plaintext. Every replica
+takes the same **cluster key** (at least 32 bytes) by reference with
+`--etcd-seal-key-from` (required), e.g. `systemd-creds:etcd-seal`, and
+seals each value with AES-256-GCM (key derived by HKDF-SHA256, the etcd
+path as additional data) before writing it. etcd holds
+`weft-seal:v1:<key id>:<ciphertext>`; the cluster key itself is never in
+etcd. Provision it on each node with go-ansible's `systemd_creds_encrypt`
+module (or `systemd-creds encrypt`).
+
+- **Upgrading a running cluster**: start the agents with
+  `--etcd-seal-key-from`. The first read of a plaintext value seals it
+  (compare-and-swap, idempotent, safe with several replicas) and compacts the
+  etcd history so the old plaintext revision is dropped. Upgrade every
+  replica in the same window: an agent from before this release cannot read
+  sealed values.
+- **Rotation**: pass the new key as `--etcd-seal-key-from` and the old one as
+  `--etcd-seal-old-key-from` (repeatable); values are re-sealed under the new
+  key on first read. Drop the old flag once every node has restarted.
+- **Not covered**: an etcd member's WAL and snapshots written before the
+  upgrade still hold the plaintext until the member is defragmented and the
+  snapshots are rotated; the agent's etcd connection has no TLS or
+  authentication of its own; a node (or anyone) that holds the cluster key
+  reads the secrets.
 
 ### systemd credentials
 
