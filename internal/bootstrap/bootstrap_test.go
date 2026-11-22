@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
-	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 )
 
 func discard() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

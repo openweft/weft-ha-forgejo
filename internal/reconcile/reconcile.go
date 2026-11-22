@@ -13,10 +13,10 @@ import (
 	"log/slog"
 	"time"
 
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/api"
 	"github.com/openweft/weft-ha-forgejo/internal/bootstrap"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
-	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/forgejo"
 )
 
