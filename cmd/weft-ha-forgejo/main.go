@@ -23,12 +23,12 @@ import (
 
 	weftslognats "github.com/openweft/weft-slognats"
 
+	"github.com/go-authn/secretsource/secretflag"
 	"github.com/openweft/weft-ha-forgejo/internal/api"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
 	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/forgejo"
 	"github.com/openweft/weft-ha-forgejo/internal/reconcile"
-	"github.com/openweft/weft-ha-forgejo/internal/secretflag"
 )
 
 // Build metadata, injected via -ldflags.
