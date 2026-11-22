@@ -52,6 +52,44 @@ continuous leader election, just one-shot bootstrap + health probe.
    local process and exposes `/ready` + `/info` on `:3001`. The L7
    Caddy active-probes `/ready` ; failing replicas are drained.
 
+## Secrets
+
+A flag value is visible in `ps` and in `/proc/<pid>/cmdline`, so every
+secret is taken **by reference**. Each of `--admin-password`,
+`--db-password`, `--s3-secret-key`, `--secret-key`, `--internal-token`
+and `--lfs-jwt-secret` has a `--<name>-from <ref>` twin, resolved with
+[go-authn/secretsource](https://github.com/go-authn/secretsource)
+(`systemd-creds:<name>`, `keychain:`, `keepassxc:`, `file:` — mode
+checked, at most 4096 bytes). The plain flag still works for one minor
+release, prints a deprecation warning on stderr, and is refused together
+with its twin. It will be removed in the next minor.
+
+The agent never starts Forgejo and never passes a secret to a child by
+argv or environment: it keeps them in memory and in etcd, and `weft-init`
+renders `app.ini`. When a renderer hands a secret to Forgejo, use
+Forgejo's file-based settings (`SECRET_KEY_URI = file:/path`,
+`INTERNAL_TOKEN_URI`, `LFS_JWT_SECRET_URI`) with the file in a private
+`0700` directory, never an `--option value` or an environment variable.
+
+### systemd credentials
+
+```ini
+[Service]
+LoadCredentialEncrypted=admin-password:/etc/credstore.encrypted/admin-password
+LoadCredentialEncrypted=db-password:/etc/credstore.encrypted/db-password
+ExecStart=/usr/local/bin/weft-ha-forgejo agent \
+  --admin-password-from systemd-creds:admin-password \
+  --db-password-from systemd-creds:db-password
+```
+
+Seal with `systemd-creds encrypt --name=admin-password - admin-password.cred`.
+**TPM caveat**: do not seal with a bare `--tpm2-pcrs=7`: a Secure Boot
+db/dbx or firmware update changes PCR 7 and the credential no longer
+opens. Seal to `--with-key=host+tpm2` (the host key is the recovery
+path), or to a signed PCR policy (`--tpm2-public-key=`), or manage the
+policy with `systemd-pcrlock`; otherwise keep a plaintext copy offline
+and re-seal after each firmware change.
+
 ## Layout
 
 ```
