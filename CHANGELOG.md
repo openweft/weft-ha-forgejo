@@ -7,6 +7,21 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `--admin-password-from`, `--db-password-from`, `--s3-secret-key-from`,
+  `--secret-key-from`, `--internal-token-from`, `--lfs-jwt-secret-from`:
+  take each secret by go-authn/secretsource reference
+  (`systemd-creds:`, `keychain:`, `keepassxc:`, `file:`) instead of a
+  flag value visible in `ps`.
+
+### Deprecated
+
+- The plain `--admin-password`, `--db-password`, `--s3-secret-key`,
+  `--secret-key`, `--internal-token`, `--lfs-jwt-secret` flags: they warn
+  on stderr, are mutually exclusive with their `-from` twin, and go in the
+  next minor.
+
 ### Fixed
 
 - `internal/api.ready` (serving both `/ready` and `/health`) now emits a
