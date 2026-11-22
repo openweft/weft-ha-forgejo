@@ -23,6 +23,15 @@ type Config struct {
 	// EtcdEndpoints lists the etcd endpoints backing the shared-secret
 	// store + bootstrap advisory lock.
 	EtcdEndpoints []string
+	// etcd transport security. CA and certificate are public paths; the client
+	// key (PEM) and the password come from --etcd-client-key-from and
+	// --etcd-password-from. EtcdInsecure allows plaintext (development only).
+	EtcdCA        string
+	EtcdCert      string
+	EtcdClientKey string
+	EtcdUser      string
+	EtcdPassword  string
+	EtcdInsecure  bool
 
 	// Domain is the public hostname Forgejo serves (sets ROOT_URL).
 	Domain string
