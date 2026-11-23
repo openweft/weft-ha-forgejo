@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
-	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 )
 
 // A cluster seeded in plaintext by an older agent is re-sealed on start, the

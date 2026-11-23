@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
-	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

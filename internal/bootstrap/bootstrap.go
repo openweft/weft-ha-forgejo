@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-forgejo/internal/config"
-	"github.com/openweft/weft-ha-forgejo/internal/dcs"
 )
 
 // Result is what Run reports back to the reconcile loop. The agent
